@@ -153,6 +153,8 @@ namespace s3_size_finder
             csvWriter.WriteField("key");
             csvWriter.WriteField("size");
 
+            await csvWriter.NextRecordAsync();
+
             foreach (var record in keyMatches)
             {
                 csvWriter.WriteField(record.Key);
