@@ -5,7 +5,6 @@ using CsvHelper;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -81,7 +80,7 @@ namespace s3_size_finder
                     {
                         numMatches++;
 
-                        keyMatches[match.Key] = match.Size;
+                        keyMatches.TryAdd(match.Key, match.Size);
                     }
 
                     Consoler.WriteLines(ConsoleColor.Cyan, $"Found {numMatches} objects matching size criteria.");
@@ -110,7 +109,14 @@ namespace s3_size_finder
             }
             while (!string.IsNullOrEmpty(continuationToken));
 
-            return await WriteCsvAsync(keyMatches);
+            var filePath = await WriteCsvAsync(keyMatches);
+
+           if (keyMatches.Count > 0)
+           {
+                await InvokeActionAsync(keyMatches.Keys);
+           }
+
+            return filePath;
         }
 
         private bool IsMatch(Amazon.S3.Model.S3Object s3Object)
@@ -133,18 +139,11 @@ namespace s3_size_finder
             return true;
         }
 
-        private static string GetBasePath()
-        {
-            using var processModule = Process.GetCurrentProcess().MainModule;
-
-            return Path.GetDirectoryName(processModule?.FileName);
-        }
-
         private async Task<string> WriteCsvAsync(IDictionary<string, long> keyMatches)
         {
             Consoler.WriteLines(ConsoleColor.Cyan, "Writing results to CSV...");
 
-            var filePath = Path.Combine(GetBasePath(), $"{Guid.NewGuid()}.csv");
+            var filePath = Path.Combine(AppSettings.BasePath, $"{AppSettings.OpId}_find.csv");
 
             using var fileStream = new FileStream(filePath, FileMode.CreateNew);
             using var streamWriter = new StreamWriter(fileStream, Encoding.UTF8, 1024, leaveOpen: true);
@@ -172,6 +171,29 @@ namespace s3_size_finder
             var regionEndpoint = RegionEndpoint.GetBySystemName(_appSettings.Region);
 
             return new AmazonS3Client(credentials, regionEndpoint);
+        }
+
+        private async Task InvokeActionAsync(IEnumerable<string> keys)
+        {
+            if (string.IsNullOrEmpty(_appSettings.Action?.Name))
+            {
+                return;
+            }
+
+            Consoler.WriteLines(ConsoleColor.Yellow, $"Invoking Action {_appSettings.Action?.Name}.");
+
+            switch (_appSettings.Action.Name)
+            {
+                case DeleteAction.Name:
+                    await DeleteAction.InvokeAsync(keys, _s3Client, _appSettings);
+                    break;
+                case RenameAction.Name:
+                    await RenameAction.InvokeAsync(keys, _s3Client, _appSettings);
+                    break;
+                default:
+                    Consoler.WriteError($"Action Not Supported: {_appSettings.Action.Name}");
+                    break;
+            }
         }
     }
 }

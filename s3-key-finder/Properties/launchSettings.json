@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "s3-key-finder": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "development"
+      }
+    }
+  }
+}
