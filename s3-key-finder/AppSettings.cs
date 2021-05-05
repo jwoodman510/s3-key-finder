@@ -25,6 +25,8 @@ namespace s3_size_finder
 
         public string KeyPattern { get; set; }
 
+        public string SourceDataFilePath { get; set; }
+
         public Action Action { get; set; }
     }
 

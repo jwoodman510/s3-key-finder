@@ -2,6 +2,7 @@
 using Amazon.Runtime;
 using Amazon.S3;
 using CsvHelper;
+using CsvHelper.Configuration;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -30,13 +31,56 @@ namespace s3_size_finder
             _s3Client.Dispose();
         }
 
-        /// <summary>
-        /// Finds files in s3 matching the application settings criteria
-        /// </summary>
-        /// <returns>TJe result set file path.</returns>
         public async Task<string> FindAsync()
         {
-            Consoler.WriteLines(ConsoleColor.Cyan, $"Finding files between {0} and {0} bytes...");
+            string filePath = null;
+            IDictionary<string, long> keyMatches;
+
+            if (!string.IsNullOrEmpty(_appSettings.SourceDataFilePath))
+            {
+                keyMatches = await FindViaFileAsync();
+            }
+            else
+            {
+                keyMatches = await FindViaS3Async();
+
+                filePath = await WriteCsvAsync(keyMatches);
+            }
+
+            if (keyMatches.Count > 0)
+            {
+                await InvokeActionAsync(keyMatches.Keys);
+            }
+
+            return filePath;
+        }
+
+        public async Task<ConcurrentDictionary<string, long>> FindViaFileAsync()
+        {
+            using var reader = new StreamReader(_appSettings.SourceDataFilePath);
+            using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                MissingFieldFound = x => { }
+            });
+
+            var keys = new ConcurrentDictionary<string, long>();
+
+            var records = csv.GetRecordsAsync<KeyRecord>();
+
+            await foreach (var record in records)
+            {
+                keys[record.Key] = record.Size ?? -1;
+            }
+
+            return keys;
+        }
+
+        public async Task<ConcurrentDictionary<string, long>> FindViaS3Async()
+        {
+            Consoler.WriteLines(ConsoleColor.Cyan,
+                "File Key Filter Criteria:",
+                $"\tSize between {0} and {0} bytes",
+                $"\tKey pattern: {_appSettings.KeyPattern}");
 
             string continuationToken = null;
             var keyMatches = new ConcurrentDictionary<string, long>();
@@ -83,7 +127,7 @@ namespace s3_size_finder
                         keyMatches.TryAdd(match.Key, match.Size);
                     }
 
-                    Consoler.WriteLines(ConsoleColor.Cyan, $"Found {numMatches} objects matching size criteria.");
+                    Consoler.WriteLines(ConsoleColor.Cyan, $"Found {numMatches} objects matching filter criteria.");
                 }
                 catch (Exception ex)
                 {
@@ -109,14 +153,7 @@ namespace s3_size_finder
             }
             while (!string.IsNullOrEmpty(continuationToken));
 
-            var filePath = await WriteCsvAsync(keyMatches);
-
-           if (keyMatches.Count > 0)
-           {
-                await InvokeActionAsync(keyMatches.Keys);
-           }
-
-            return filePath;
+            return keyMatches;
         }
 
         private bool IsMatch(Amazon.S3.Model.S3Object s3Object)

@@ -1,8 +1,8 @@
 # s3-key-finder
 
 ## usage
-All configuration is defined in the appsettings.json
-All found keys are written to a local CSV file
+All configuration is defined in the appsettings.json.
+All found keys are written to a local CSV file.
 
 #### basic configuration
 - **region**: your s3 region to operate against
@@ -22,6 +22,7 @@ All found keys are written to a local CSV file
 - **keyPattern**: c# regular expression pattern to filter object results
 
 #### operating on results
+- **sourceDataFilePath**: When set, operations will be performed on the data read from the provided CSV file (assumes first column is the key)
 - **action**: Name of the post-find action
   - Options: "DELETE", "RENAME"
 - **dryRun**: When set to true, does not perform any PUT calls to s3

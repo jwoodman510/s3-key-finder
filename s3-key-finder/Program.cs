@@ -24,7 +24,14 @@ namespace s3_size_finder
 
                 var filePath = await finder.FindAsync();
 
-                Consoler.WriteLines(ConsoleColor.Green, $"We're all done here. Results stored at {filePath}");
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    Consoler.WriteLines(ConsoleColor.Green, "We're all done here.");
+                }
+                else
+                {
+                    Consoler.WriteLines(ConsoleColor.Green, $"We're all done here. Results stored at {filePath}");
+                }
             }
             catch (Exception ex)
             {
